@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F2F4EE">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Mes recettes Insta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<style>
+html,body{margin:0}
+
+/* Layout: one column of recipe cards on phone, a grid on wider screens; sticky search bar; add/edit form in a bottom sheet. */
+:root {
+  --bg: #F2F4EE;
+  --surface: #FFFFFF;
+  --ink: #1F2A1C;
+  --muted: #5F6B58;
+  --line: #DCE2D4;
+  --accent: #C2410C;
+  --accent-ink: #FFFFFF;
+  --herb: #3F6B35;
+  --chip: #E6EBDF;
+  --danger: #B42318;
+  --shadow: 0 1px 2px rgba(31,42,28,.06), 0 6px 20px rgba(31,42,28,.06);
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141912; --surface: #1D241A; --ink: #EAF0E4; --muted: #A3AE9A; --line: #2F392B;
+  --accent: #F0783C; --accent-ink: #1A0E06; --herb: #8DBB7F; --chip: #283224; --danger: #F97066;
+  --shadow: 0 1px 2px rgba(0,0,0,.3); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #141912; --surface: #1D241A; --ink: #EAF0E4; --muted: #A3AE9A; --line: #2F392B;
+  --accent: #F0783C; --accent-ink: #1A0E06; --herb: #8DBB7F; --chip: #283224; --danger: #F97066;
+  --shadow: 0 1px 2px rgba(0,0,0,.3); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 110px; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(28px, 7vw, 40px); letter-spacing: -.02em; margin: 0; line-height: 1.05; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; }
+header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.count { font-variant-numeric: tabular-nums; color: var(--herb); font-weight: 600; }
+
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; display: grid; gap: 10px; }
+.search { position: relative; }
+.search input { width: 100%; font: inherit; font-size: 16px; padding: 12px 14px 12px 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; font: inherit; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-top: 6px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.cover { display: flex; align-items: center; gap: 12px; padding: 14px 14px 0; }
+.mono { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 24px; color: #fff; }
+.ttl { min-width: 0; flex: 1; }
+.ttl h2 { font-family: var(--display); font-weight: 600; font-size: 19px; margin: 0; line-height: 1.2; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.fav { flex: none; background: none; border: 0; padding: 6px; cursor: pointer; color: var(--muted); border-radius: 8px; }
+.fav[aria-pressed="true"] { color: var(--accent); }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px 0; }
+.tag { font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--ink); }
+.tag.ex { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
+details { padding: 10px 14px 0; }
+summary { cursor: pointer; color: var(--herb); font-weight: 600; font-size: 14px; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+ "; }
+details[open] summary::before { content: "– "; }
+.ing { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
+.ing label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.ing input { margin-top: 3px; accent-color: var(--herb); }
+.ing input:checked + span { text-decoration: line-through; color: var(--muted); }
+.notes { white-space: pre-wrap; color: var(--muted); margin: 8px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.actions { display: flex; gap: 8px; padding: 14px; margin-top: auto; flex-wrap: wrap; }
+.btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 10px; padding: 9px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { border-color: transparent; color: var(--muted); padding-inline: 8px; }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.watch { flex: 1; justify-content: center; }
+
+.fab { position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 8; font: inherit; font-weight: 700; font-size: 16px; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px; padding: 15px 22px; box-shadow: 0 8px 24px rgba(0,0,0,.18); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+
+.empty { text-align: center; padding: 48px 16px; color: var(--muted); border: 1px dashed var(--line); border-radius: 16px; margin-top: 10px; }
+.empty b { display: block; font-family: var(--display); font-size: 20px; color: var(--ink); margin-bottom: 6px; }
+.notice { font-size: 13px; color: var(--muted); background: var(--chip); border-radius: 10px; padding: 8px 12px; }
+
+.scrim { position: fixed; inset: 0; background: rgba(10,14,8,.45); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 92%; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+@media (min-width: 640px) { .scrim { align-items: center; } .sheet { border-radius: 20px; } }
+.sheet h3 { font-family: var(--display); font-size: 22px; margin: 0 0 12px; }
+.field { display: grid; gap: 5px; margin-bottom: 12px; }
+.field label { font-weight: 600; font-size: 14px; }
+.field small { color: var(--muted); font-size: 12px; }
+.field input, .field textarea { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
+.field textarea { min-height: 96px; resize: vertical; }
+.err { color: var(--danger); font-size: 13px; }
+.sugg { display: flex; flex-wrap: wrap; gap: 6px; }
+.sheet .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
+.backup { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.backup span { flex-basis: 100%; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 500; z-index: 30; }
+@media (prefers-reduced-motion: no-preference) { .card { animation: up .25s ease both; } @keyframes up { from { transform: translateY(6px); } to { transform: none; } } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Mes recettes Insta</h1>
+      <p class="sub"><span class="count" id="count">…</span> · colle le lien d'une vidéo, range-la, retrouve-la.</p>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Chercher : poulet, chocolat, rapide…" aria-label="Chercher une recette" autocomplete="off">
+    </div>
+    <div class="chips" id="chips" role="toolbar" aria-label="Filtrer par tag"></div>
+  </div>
+
+  <p class="notice" id="notice" hidden></p>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden></div>
+  <div class="backup">
+    <span>Tes recettes sont gardées sur ce téléphone.</span>
+    <button type="button" class="btn ghost" id="exportBtn">Télécharger une sauvegarde</button>
+    <button type="button" class="btn ghost" id="importBtn">Restaurer</button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+</div>
+
+<button class="fab" id="add" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Ajouter une recette</button>
+
+<div class="scrim" id="scrim" hidden>
+  <form class="sheet" id="form" novalidate>
+    <h3 id="formTitle">Nouvelle recette</h3>
+    <div class="field">
+      <label for="f-url">Lien de la vidéo Instagram</label>
+      <input id="f-url" type="url" inputmode="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off">
+      <small>Sur Instagram : « ⋯ » ou « Partager » puis « Copier le lien ».</small>
+      <span class="err" id="e-url" hidden></span>
+    </div>
+    <div class="field">
+      <label for="f-title">Nom de la recette</label>
+      <input id="f-title" type="text" placeholder="Ex. Cookies au beurre noisette" autocomplete="off">
+      <span class="err" id="e-title" hidden></span>
+    </div>
+    <div class="field">
+      <label for="f-tags">Tags</label>
+      <input id="f-tags" type="text" placeholder="dessert, rapide" autocomplete="off">
+      <div class="sugg" id="sugg"></div>
+    </div>
+    <div class="field">
+      <label for="f-ing">Ingrédients <small>(un par ligne, facultatif)</small></label>
+      <textarea id="f-ing" placeholder="200 g de farine&#10;2 œufs&#10;100 g de chocolat"></textarea>
+    </div>
+    <div class="field">
+      <label for="f-notes">Notes <small>(facultatif)</small></label>
+      <textarea id="f-notes" placeholder="Cuisson 12 min à 180 °C, moins de sucre…"></textarea>
+    </div>
+    <div class="row">
+      <button type="button" class="btn ghost" id="cancel">Annuler</button>
+      <button type="submit" class="btn primary" id="save">Enregistrer</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const SUGGESTED = ["dessert", "plat", "entrée", "apéro", "petit-déj", "rapide", "végé", "healthy", "batch cooking"];
+  const PALETTE = ["#C2410C", "#3F6B35", "#9A3412", "#7C5A12", "#0F766E", "#86198F", "#1D4ED8", "#B45309"];
+  const LS_KEY = "recettes-insta-v1";
+
+  let recipes = [];        // [{id, ...data}]
+  let ready = false;
+  let db = null, col = null, useLocal = false;
+  let query = "", activeTag = null, onlyFav = false;
+  let editingId = null, confirmId = null;
+
+  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+  function colorFor(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; }
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2200); }
+
+  function parseInsta(raw) {
+    const s = String(raw || "").trim();
+    const m = s.match(/instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+    if (!m) return null;
+    const kind = m[1].toLowerCase() === "p" ? "p" : m[1].toLowerCase() === "tv" ? "tv" : "reel";
+    return "https://www.instagram.com/" + kind + "/" + m[2] + "/";
+  }
+  function splitTags(s) { return [...new Set(String(s || "").split(/[,#\n]/).map((t) => t.trim().toLowerCase()).filter(Boolean))]; }
+
+  // ---------- storage ----------
+  function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch (e) { return []; } }
+  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(recipes)); } catch (e) {} }
+
+  async function addRecipe(data) {
+    if (useLocal) { recipes.unshift({ id: "r" + Date.now(), ...data }); saveLocal(); render(); return; }
+    await col.add(data);
+  }
+  async function updateRecipe(id, data) {
+    if (useLocal) { const r = recipes.find((x) => x.id === id); Object.assign(r, data); saveLocal(); render(); return; }
+    await col.doc(id).update(data);
+  }
+  async function deleteRecipe(id) {
+    if (useLocal) { recipes = recipes.filter((x) => x.id !== id); saveLocal(); render(); return; }
+    await col.doc(id).delete();
+  }
+
+  function init() {
+    useLocal = true; ready = true;
+    recipes = loadLocal();
+    render();
+    // Link shared from Instagram (Android share menu) arrives as ?text=...&url=...&title=...
+    const p = new URLSearchParams(location.search);
+    const shared = [p.get("url"), p.get("text"), p.get("title")].filter(Boolean).join(" ");
+    if (shared) {
+      history.replaceState(null, "", location.pathname);
+      const m = shared.match(/https?:\/\/\S*instagram\.com\/\S+/i);
+      const link = m ? m[0] : shared.trim();
+      openForm(null);
+      $("f-url").value = link;
+      if (!parseInsta(link)) { $("e-url").textContent = "Ce lien ne vient pas d'une vidéo Instagram. Vérifie-le avant d'enregistrer."; $("e-url").hidden = false; }
+      setTimeout(() => $("f-title").focus(), 60);
+    }
+  }
+
+  // ---------- backup ----------
+  $("exportBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(recipes, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mes-recettes-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast("Sauvegarde téléchargée");
+  });
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("importFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const list = JSON.parse(await f.text());
+      if (!Array.isArray(list)) throw new Error();
+      const known = new Set(recipes.map((r) => r.url));
+      let n = 0;
+      list.forEach((r) => { if (r && r.url && r.title && !known.has(r.url)) { recipes.push({ ...r, id: r.id || "r" + Date.now() + n }); known.add(r.url); n++; } });
+      saveLocal(); render(); toast(n + " recette" + (n > 1 ? "s" : "") + " ajoutée" + (n > 1 ? "s" : ""));
+    } catch (err) { toast("Ce fichier n'est pas une sauvegarde de l'appli"); }
+    e.target.value = "";
+  });
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+  // ---------- render ----------
+  function allTags() {
+    const counts = {};
+    recipes.forEach((r) => (r.tags || []).forEach((t) => (counts[t] = (counts[t] || 0) + 1)));
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  }
+
+  function filtered() {
+    const words = norm(query).split(/\s+/).filter(Boolean);
+    return recipes
+      .filter((r) => !activeTag || (r.tags || []).includes(activeTag))
+      .filter((r) => !onlyFav || r.fav)
+      .filter((r) => {
+        if (!words.length) return true;
+        const hay = norm([r.title, (r.tags || []).join(" "), (r.ingredients || []).join(" "), r.notes].join(" "));
+        return words.every((w) => hay.includes(w));
+      })
+      .sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || (b.createdAt || 0) - (a.createdAt || 0));
+  }
+
+  function renderChips() {
+    const tags = allTags();
+    if (activeTag && !tags.includes(activeTag)) activeTag = null;
+    const parts = [`<button class="chip" type="button" data-tag="" aria-pressed="${!activeTag && !onlyFav}">Toutes</button>`,
+      `<button class="chip" type="button" data-fav="1" aria-pressed="${onlyFav}">★ Favoris</button>`];
+    tags.forEach((t) => parts.push(`<button class="chip" type="button" data-tag="${esc(t)}" aria-pressed="${activeTag === t}">${esc(t)}</button>`));
+    $("chips").innerHTML = parts.join("");
+  }
+
+  function cardHTML(r) {
+    const ing = r.ingredients || [];
+    const letter = (r.title || "?").trim().charAt(0).toUpperCase();
+    const confirming = confirmId === r.id;
+    return `<article class="card" data-id="${esc(r.id)}">
+      <div class="cover">
+        <div class="mono" style="background:${colorFor((r.tags && r.tags[0]) || r.title)}" aria-hidden="true">${esc(letter)}</div>
+        <div class="ttl"><h2>${esc(r.title)}</h2>
+          <div class="meta">${ing.length ? ing.length + " ingrédient" + (ing.length > 1 ? "s" : "") : "Pas d'ingrédients notés"}</div></div>
+        <button class="fav" type="button" data-act="fav" aria-pressed="${!!r.fav}" aria-label="${r.fav ? "Retirer des favoris" : "Ajouter aux favoris"}">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="${r.fav ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
+        </button>
+      </div>
+      ${(r.tags && r.tags.length) || r.exemple ? `<div class="tags">${r.exemple ? '<span class="tag ex">exemple</span>' : ""}${(r.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
+      ${ing.length || r.notes ? `<details><summary>${ing.length ? "Ingrédients" : "Notes"}</summary>
+        ${ing.length ? `<ul class="ing">${ing.map((x, i) => `<li><label><input type="checkbox" id="c-${esc(r.id)}-${i}"><span>${esc(x)}</span></label></li>`).join("")}</ul>` : ""}
+        ${r.notes ? `<p class="notes">${esc(r.notes)}</p>` : ""}</details>` : ""}
+      <div class="actions">
+        ${confirming
+          ? `<span style="flex:1;align-self:center;font-size:14px">Supprimer cette recette ?</span><button class="btn ghost" type="button" data-act="nodel">Non</button><button class="btn danger" type="button" data-act="yesdel">Supprimer</button>`
+          : `<a class="btn primary watch" href="${esc(r.url)}" target="_blank" rel="noopener">Voir la vidéo <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+             <button class="btn" type="button" data-act="edit">Modifier</button>
+             <button class="btn ghost" type="button" data-act="del" aria-label="Supprimer">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>`}
+      </div>
+    </article>`;
+  }
+
+  function render() {
+    const n = recipes.length;
+    $("count").textContent = ready ? n + " recette" + (n > 1 ? "s" : "") : "Chargement…";
+    renderChips();
+    const list = filtered();
+    $("grid").innerHTML = list.map(cardHTML).join("");
+    const empty = $("empty");
+    if (!ready) { empty.innerHTML = "<b>Chargement de tes recettes…</b>"; empty.hidden = false; }
+    else if (!n) { empty.innerHTML = "<b>Aucune recette pour l'instant</b>Appuie sur « Ajouter une recette » et colle le lien d'une vidéo Instagram."; empty.hidden = false; }
+    else if (!list.length) { empty.innerHTML = "<b>Rien ne correspond</b>Essaie un autre mot ou enlève le filtre."; empty.hidden = false; }
+    else empty.hidden = true;
+  }
+
+  // ---------- form ----------
+  function renderSugg() {
+    const current = splitTags($("f-tags").value);
+    const pool = [...new Set([...allTags(), ...SUGGESTED])].filter((t) => !current.includes(t)).slice(0, 12);
+    $("sugg").innerHTML = pool.map((t) => `<button type="button" class="chip" data-add="${esc(t)}">+ ${esc(t)}</button>`).join("");
+  }
+  function openForm(r) {
+    editingId = r ? r.id : null;
+    $("formTitle").textContent = r ? "Modifier la recette" : "Nouvelle recette";
+    $("f-url").value = r ? r.url : "";
+    $("f-title").value = r ? r.title : "";
+    $("f-tags").value = r ? (r.tags || []).join(", ") : "";
+    $("f-ing").value = r ? (r.ingredients || []).join("\n") : "";
+    $("f-notes").value = r ? r.notes || "" : "";
+    $("e-url").hidden = $("e-title").hidden = true;
+    renderSugg();
+    $("scrim").hidden = false;
+    setTimeout(() => $(r ? "f-title" : "f-url").focus(), 30);
+  }
+  function closeForm() { $("scrim").hidden = true; editingId = null; }
+
+  $("add").addEventListener("click", () => openForm(null));
+  $("cancel").addEventListener("click", closeForm);
+  $("scrim").addEventListener("click", (e) => { if (e.target === $("scrim")) closeForm(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("scrim").hidden) closeForm(); });
+  $("f-tags").addEventListener("input", renderSugg);
+  $("sugg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-add]"); if (!b) return;
+    const tags = splitTags($("f-tags").value); tags.push(b.dataset.add);
+    $("f-tags").value = tags.join(", "); renderSugg();
+  });
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const url = parseInsta($("f-url").value);
+    const title = $("f-title").value.trim();
+    let ok = true;
+    if (!url) { $("e-url").textContent = "Ce lien ne ressemble pas à une vidéo Instagram. Il doit contenir instagram.com/reel/… ou instagram.com/p/…"; $("e-url").hidden = false; ok = false; } else $("e-url").hidden = true;
+    if (!title) { $("e-title").textContent = "Donne un nom à la recette pour la retrouver."; $("e-title").hidden = false; ok = false; } else $("e-title").hidden = true;
+    if (!ok) return;
+    const data = {
+      url, title,
+      tags: splitTags($("f-tags").value),
+      ingredients: $("f-ing").value.split("\n").map((s) => s.replace(/^[-•*\s]+/, "").trim()).filter(Boolean),
+      notes: $("f-notes").value.trim(),
+    };
+    $("save").disabled = true;
+    try {
+      if (editingId) { await updateRecipe(editingId, data); toast("Recette modifiée"); }
+      else { const dup = recipes.find((r) => r.url === url); await addRecipe({ ...data, fav: false, createdAt: Date.now() }); toast(dup ? "Ajoutée (tu avais déjà cette vidéo)" : "Recette ajoutée"); }
+      closeForm();
+    } catch (err) { toast("Pas enregistré : " + ((err && err.message) || "réessaie dans un instant")); }
+    $("save").disabled = false;
+  });
+
+  // ---------- list interactions ----------
+  $("q").addEventListener("input", (e) => { query = e.target.value; render(); });
+  $("chips").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    if (b.dataset.fav) { onlyFav = !onlyFav; }
+    else if (b.dataset.tag === "") { activeTag = null; onlyFav = false; }
+    else activeTag = activeTag === b.dataset.tag ? null : b.dataset.tag;
+    render();
+  });
+  $("grid").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const id = b.closest(".card").dataset.id;
+    const r = recipes.find((x) => x.id === id); if (!r) return;
+    const act = b.dataset.act;
+    try {
+      if (act === "edit") openForm(r);
+      else if (act === "fav") await updateRecipe(id, { fav: !r.fav });
+      else if (act === "del") { confirmId = id; render(); }
+      else if (act === "nodel") { confirmId = null; render(); }
+      else if (act === "yesdel") { confirmId = null; await deleteRecipe(id); toast("Recette supprimée"); }
+    } catch (err) { toast("Action impossible : " + ((err && err.message) || "réessaie")); }
+  });
+
+  // Paste anywhere (outside a field) opens the form with the link filled in
+  document.addEventListener("paste", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea")) return;
+    const text = (e.clipboardData && e.clipboardData.getData("text")) || "";
+    if (parseInsta(text)) { e.preventDefault(); openForm(null); $("f-url").value = text.trim(); setTimeout(() => $("f-title").focus(), 40); }
+  });
+
+  init();
+})();
+</script>
+
+</body>
+</html>
