@@ -103,6 +103,10 @@ details[open] summary::before { content: "– "; }
 .field input, .field textarea { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
 .field textarea { min-height: 96px; resize: vertical; }
 .err { color: var(--danger); font-size: 13px; }
+.descrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.ok { color: var(--herb); font-size: 13px; font-weight: 600; }
+.field.desc { background: var(--chip); border-radius: 12px; padding: 10px; }
+.field.desc textarea { background: var(--surface); min-height: 80px; }
 .sugg { display: flex; flex-wrap: wrap; gap: 6px; }
 .sheet .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
 .backup { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
@@ -151,6 +155,15 @@ details[open] summary::before { content: "– "; }
       <small>Sur Instagram : « ⋯ » ou « Partager » puis « Copier le lien ».</small>
       <span class="err" id="e-url" hidden></span>
     </div>
+    <div class="field desc">
+      <label for="f-desc">Description de la vidéo <small>(facultatif)</small></label>
+      <textarea id="f-desc" placeholder="Colle ici le texte sous la vidéo : l'appli range toute seule le nom, les ingrédients, les étapes et les #tags."></textarea>
+      <div class="descrow">
+        <button type="button" class="btn" id="fillBtn">Remplir à partir de la description</button>
+      </div>
+      <small id="descHint">Pour copier la description : fais une capture d'écran du texte, ouvre-la dans ta Galerie et touche l'icône « T » pour copier le texte. Tu peux aussi le partager directement vers « Recettes ».</small>
+      <span class="ok" id="descMsg" hidden></span>
+    </div>
     <div class="field">
       <label for="f-title">Nom de la recette</label>
       <input id="f-title" type="text" placeholder="Ex. Cookies au beurre noisette" autocomplete="off">
@@ -166,7 +179,7 @@ details[open] summary::before { content: "– "; }
       <textarea id="f-ing" placeholder="200 g de farine&#10;2 œufs&#10;100 g de chocolat"></textarea>
     </div>
     <div class="field">
-      <label for="f-notes">Notes <small>(facultatif)</small></label>
+      <label for="f-notes">Préparation et notes <small>(facultatif)</small></label>
       <textarea id="f-notes" placeholder="Cuisson 12 min à 180 °C, moins de sucre…"></textarea>
     </div>
     <div class="row">
@@ -231,12 +244,21 @@ details[open] summary::before { content: "– "; }
     const shared = [p.get("url"), p.get("text"), p.get("title")].filter(Boolean).join(" ");
     if (shared) {
       history.replaceState(null, "", location.pathname);
-      const m = shared.match(/https?:\/\/\S*instagram\.com\/\S+/i);
-      const link = m ? m[0] : shared.trim();
+      const sharedText = [p.get("title"), p.get("text"), p.get("url")].filter(Boolean).join("\n");
+      const m = sharedText.match(/https?:\/\/\S*instagram\.com\/\S+/i);
+      const rest = sharedText.replace(/https?:\/\/\S+/g, "").trim();
+      let draft = loadDraft();
+      if (draft && m && draft["f-url"] && parseInsta(draft["f-url"]) !== parseInsta(m[0])) draft = null;
       openForm(null);
-      $("f-url").value = link;
-      if (!parseInsta(link)) { $("e-url").textContent = "Ce lien ne vient pas d'une vidéo Instagram. Vérifie-le avant d'enregistrer."; $("e-url").hidden = false; }
-      setTimeout(() => $("f-title").focus(), 60);
+      if (draft) DRAFT_FIELDS.forEach((f) => ($(f).value = draft[f] || ""));
+      renderSugg();
+      if (m) $("f-url").value = m[0];
+      if (rest.length > 20) { $("f-desc").value = rest; fillFromDescription(true); }
+      saveDraft();
+      const url = $("f-url").value;
+      if (url && !parseInsta(url)) { $("e-url").textContent = "Ce lien ne vient pas d'une vidéo Instagram. Vérifie-le avant d'enregistrer."; $("e-url").hidden = false; }
+      if (!url) { $("e-url").textContent = "Il manque le lien de la vidéo : partage aussi la vidéo vers « Recettes », ou colle son lien ici."; $("e-url").hidden = false; }
+      setTimeout(() => $(url && !$("f-title").value ? "f-title" : "f-desc").focus(), 60);
     }
   }
 
@@ -265,6 +287,101 @@ details[open] summary::before { content: "– "; }
   });
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+  // ---------- description parser ----------
+  const DRAFT_KEY = "recettes-brouillon-v1";
+  const PICTO = /[\p{Extended_Pictographic}️⃣‍]/gu;
+  function cleanLine(l) {
+    return l.replace(/^\s*\d️?⃣/u, "")         // keycap numbers 1️⃣
+            .replace(PICTO, " ")
+            .replace(/^[\s\-–—•*·▪►→>+.:]+/u, "")
+            .replace(/\s{2,}/g, " ").trim();
+  }
+  function headingKind(l) {
+    const t = norm(cleanLine(l)).replace(/[:\s]+$/, "");
+    if (t.length > 40) return null;
+    if (/^(les? )?ingredients?( pour.*)?$|^il (te|vous) faut|^liste de courses/.test(t)) return "ing";
+    if (/^(la )?(preparation|etapes?|instructions?|methode|recette|deroule|realisation|cuisson|montage)( :.*)?$/.test(t)) return "step";
+    return null;
+  }
+  const UNIT = /(\d|½|¼|¾|\b(g|gr|kg|ml|cl|dl|l|c\.?\s?a\.?\s?[sc]|cas|cac|cuill|cuillere|cs|cc|pincee|sachet|boite|tranche|gousse|verre|tasse|filet|botte|bouquet|oeufs?|œufs?)\b)/i;
+  function parseDescription(text) {
+    const out = { title: "", tags: [], ingredients: [], steps: [], extra: [] };
+    const raw = String(text || "").replace(/\r/g, "");
+    (raw.match(/#[\p{L}\p{N}_]+/gu) || []).forEach((h) => out.tags.push(h.slice(1).toLowerCase()));
+    const lines = raw.split("\n").map((l) => l.replace(/#[\p{L}\p{N}_]+/gu, "").replace(/@[\w.]+/g, "").trim());
+    let mode = null;
+    for (const line of lines) {
+      if (/instagram\.com\//i.test(line)) continue;
+      const c = cleanLine(line);
+      if (!c) continue;
+      const h = headingKind(line);
+      if (h) { mode = h; continue; }
+      // a line can hold "Ingrédients : farine, sucre"
+      const inline = norm(c).match(/^(ingredients?)\s*:\s*(.+)$/);
+      if (inline) { mode = "ing"; c.split(":").slice(1).join(":").split(/[,;]/).map((x) => x.trim()).filter(Boolean).forEach((x) => out.ingredients.push(x)); continue; }
+      const numbered = /^\s*(\d{1,2}\s*[.)\-–]|\d️?⃣|etape\s*\d|étape\s*\d)/iu.test(line);
+      const keycap = /^\s*\d\uFE0F?\u20E3/u.test(line);
+      if (mode === "step" || keycap || (numbered && !UNIT.test(c.replace(/^\d+\s*[.)\-–]\s*/, "")))) {
+        out.steps.push(c.replace(/^(etape|étape)\s*\d+\s*[:.\-–]?\s*/i, "").replace(/^\d{1,2}\s*[.)\-–]\s*/, ""));
+        if (!mode) mode = "step";
+        continue;
+      }
+      if (mode === "ing") { out.ingredients.push(c); continue; }
+      if (!out.title && c.length <= 90) { out.title = c.replace(/[.!:]+$/, ""); continue; }
+      // ingredient-looking line before any heading
+      const bulleted = /^\s*([\-•*·▪►]|\p{Extended_Pictographic})/u.test(line);
+      if (c.length <= 60 && !out.steps.length && ((UNIT.test(c) && (bulleted || /^\d/.test(c))) || (bulleted && out.ingredients.length))) { out.ingredients.push(c); continue; }
+      out.extra.push(c);
+    }
+    out.title = out.title.charAt(0).toUpperCase() + out.title.slice(1);
+    out.tags = [...new Set(out.tags)].filter((t) => t.length <= 25).slice(0, 8);
+    return out;
+  }
+  function fillFromDescription(auto) {
+    const text = $("f-desc").value;
+    if (!text.trim()) { if (!auto) { $("descMsg").textContent = "Colle d'abord la description dans la case."; $("descMsg").hidden = false; } return; }
+    const r = parseDescription(text);
+    const done = [];
+    if (r.title && !$("f-title").value.trim()) { $("f-title").value = r.title; done.push("le nom"); }
+    if (r.ingredients.length) {
+      const cur = $("f-ing").value.trim();
+      $("f-ing").value = (cur ? cur + "\n" : "") + r.ingredients.join("\n");
+      done.push(r.ingredients.length + " ingrédient" + (r.ingredients.length > 1 ? "s" : ""));
+    }
+    if (r.steps.length) {
+      const cur = $("f-notes").value.trim();
+      $("f-notes").value = (cur ? cur + "\n\n" : "") + r.steps.map((x, i) => (i + 1) + ". " + x).join("\n");
+      done.push(r.steps.length + " étape" + (r.steps.length > 1 ? "s" : ""));
+    }
+    if (r.tags.length) {
+      const tags = splitTags($("f-tags").value).concat(r.tags);
+      $("f-tags").value = [...new Set(tags)].join(", "); renderSugg();
+      done.push(r.tags.length + " tag" + (r.tags.length > 1 ? "s" : ""));
+    }
+    if (!r.ingredients.length && !r.steps.length && r.extra.length && !$("f-notes").value.trim()) {
+      $("f-notes").value = r.extra.join("\n"); done.push("le texte dans les notes");
+    }
+    $("descMsg").textContent = done.length ? "Rempli : " + done.join(", ") + ". Vérifie et corrige si besoin." : "Je n'ai rien trouvé à ranger. Tu peux remplir les cases à la main.";
+    $("descMsg").hidden = false;
+    saveDraft();
+  }
+  $("fillBtn").addEventListener("click", () => fillFromDescription(false));
+  $("f-desc").addEventListener("paste", () => setTimeout(() => fillFromDescription(true), 0));
+
+  // Draft: keeps an unsaved new recipe, so a link and its description can be shared one after the other
+  const DRAFT_FIELDS = ["f-url", "f-title", "f-tags", "f-ing", "f-notes", "f-desc"];
+  function saveDraft() {
+    if (editingId || $("scrim").hidden) return;
+    const d = { at: Date.now() }; DRAFT_FIELDS.forEach((f) => (d[f] = $(f).value));
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch (e) {}
+  }
+  function loadDraft() {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (d && Date.now() - d.at < 2 * 3600e3) return d; } catch (e) {}
+    return null;
+  }
+  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+  DRAFT_FIELDS.forEach((f) => $(f).addEventListener("input", saveDraft));
 
   // ---------- render ----------
   function allTags() {
@@ -350,6 +467,8 @@ details[open] summary::before { content: "– "; }
     $("f-tags").value = r ? (r.tags || []).join(", ") : "";
     $("f-ing").value = r ? (r.ingredients || []).join("\n") : "";
     $("f-notes").value = r ? r.notes || "" : "";
+    $("f-desc").value = "";
+    $("descMsg").hidden = true;
     $("e-url").hidden = $("e-title").hidden = true;
     renderSugg();
     $("scrim").hidden = false;
@@ -358,7 +477,7 @@ details[open] summary::before { content: "– "; }
   function closeForm() { $("scrim").hidden = true; editingId = null; }
 
   $("add").addEventListener("click", () => openForm(null));
-  $("cancel").addEventListener("click", closeForm);
+  $("cancel").addEventListener("click", () => { clearDraft(); closeForm(); });
   $("scrim").addEventListener("click", (e) => { if (e.target === $("scrim")) closeForm(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("scrim").hidden) closeForm(); });
   $("f-tags").addEventListener("input", renderSugg);
@@ -386,6 +505,7 @@ details[open] summary::before { content: "– "; }
     try {
       if (editingId) { await updateRecipe(editingId, data); toast("Recette modifiée"); }
       else { const dup = recipes.find((r) => r.url === url); await addRecipe({ ...data, fav: false, createdAt: Date.now() }); toast(dup ? "Ajoutée (tu avais déjà cette vidéo)" : "Recette ajoutée"); }
+      clearDraft();
       closeForm();
     } catch (err) { toast("Pas enregistré : " + ((err && err.message) || "réessaie dans un instant")); }
     $("save").disabled = false;
